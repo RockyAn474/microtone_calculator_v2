@@ -2,9 +2,11 @@ import tkinter as tk
 import math
 import numpy as np
 import pyaudio
-import time
-
-
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib import style
+from matplotlib.backends.backend_tkagg import (
+    FigureCanvasTkAgg, NavigationToolbar2Tk)
 FRET_COUNT = 19
 ##In millimeters
 SCALE_LENGTH = 650
@@ -46,7 +48,7 @@ g_white_keys_index = [0, 1, 2, 3, 4, 5, 6]
 focus_note_num = []
 g_interval = 1
 play_freqlist = []
-
+t_shift = 0
 
 def drop_D(D):
     if D is True:
@@ -243,7 +245,7 @@ def select_play(event):
         activefill = app.canvas.itemcget(app.canvas.find_withtag('current'), 'activefill')
         #app.canvas.itemconfig('current', fill='yellow',activefill=fill,outline=fill, tag=('fret',frettags[1],frettags[2],frettags[3],frettags[4],'play','current'))
         play_freqlist.append(float(app.frequency.get()))
-        print (play_freqlist)
+        #print (play_freqlist)
 
 def toggle_colors():
     '''toggles fret colors on click, sorry this is really confusing djsadsakjca but its badass'''
@@ -293,10 +295,8 @@ def playsine():
 
     p.terminate()
     play_freqlist.clear()
-def graph_sine(selected_frets):
-    """Graphs sine wave
-    Attr. should be list of freqencies, flaot"""
-    pass
+
+
 
 def update_tool_tip(event):
     global focus_note_num
@@ -440,6 +440,9 @@ class app(object):
         app.window.title("Microtone Calculator")
         app.canvas = tk.Canvas(app.window, width=CANVAS_WIDTH, height=CANVAS_HEIGHT, bg='white',closeenough=3)
         app.canvas.place(x=WINDOW_WIDTH-CANVAS_WIDTH, y=0)
+        app.fig = app.graph_sine(self)
+        app.lissajous = FigureCanvasTkAgg(app.fig, master=app.window)  # A tk.DrawingArea.
+        app.lissajous.draw()
         app.DEFAULT_FRETLIST = app.draw_guitar(self,app.canvas)
         app.draw_note_buttons(self)
         app.piano_l = app_Label('Select Base Note',0,70)
@@ -471,10 +474,13 @@ class app(object):
                      y=848)
         clear_button(lambda: playsine(), x=0, text='Play',
                      y=00)
+        clear_button(lambda: play_freqlist.clear(), x=BUTTON_OFFSET, text='Clear' + '\n' + ' Selection',
+                     y=00)
 
         app.canvas.bind("<Button-1>", select_fret)
         app.canvas.bind("<Button-3>", select_fret_alt)
         app.canvas.bind("<Control-Button-1>", select_play)
+        app.canvas.bind("<Button-2>", select_play)
         app.canvas.bind('<Motion>', update_tool_tip)
         app.info = app_Label('Note:',0,350)
         app.info = app_Label('Frequency:', 0, 375)
@@ -485,8 +491,45 @@ class app(object):
         app.info = app_Label('Distance to Next Fret', 0, 550)
         app.info = app_Label('Cents:', 0, 575)
         app.info = app_Label('Millimeters:', 0, 600)
+        app.lissajous.get_tk_widget().place(x=0,y=600)
+        ani = animation.FuncAnimation(app.fig, app.animate, interval=20)
         app.window.mainloop()
 
+    def graph_sine(self,selected_freqs=[440]):
+        """Graphs sine wave
+        Attr. should be list of freqencies, flaot"""
+        style.use('fivethirtyeight')
+
+        fig = plt.figure()
+        fig.set_size_inches(2.5, 2.5, forward=True)
+        app.ax1 = fig.add_subplot(1, 1, 1)
+        app.ax1.axes.get_xaxis().set_visible(False)
+        app.ax1.axes.get_yaxis().set_visible(False)
+        plt.subplots(constrained_layout=True)
+        return fig
+
+    def animate(self):
+        global play_freqlist
+        global t_shift
+        delta = np.pi/2
+        try:
+            t = np.linspace(2*(-np.pi+t_shift) / play_freqlist[-1], 2*(np.pi+t_shift) / play_freqlist[-1], 200)
+            y = np.sin(play_freqlist[-1] * t + delta)
+            x = np.sin(play_freqlist[-2] * t)
+            app.ax1.clear()
+            app.ax1.plot(x, y, color='black', linewidth=2)
+            t_shift+=np.pi
+
+        except:
+            t = np.linspace(-np.pi, np.pi, 300)
+            x = np.sin(1 * t + delta)
+            y = np.sin(1 * t)
+            app.ax1.clear()
+            app.ax1.plot(x, y, color='black', linewidth=2)
+
+
+
+        # plt.show()
     def draw_note_buttons(self):
         '''Places 12 tone buttons'''
         for note_num in [0, 2, 3, 5, 7, 8, 10]:
